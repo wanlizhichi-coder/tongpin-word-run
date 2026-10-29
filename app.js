@@ -27,7 +27,8 @@ const initialState = {
   peerId: '',
   connected: false,
   role: '',
-  connectionMessage: ''
+  connectionMessage: '',
+  records: []
 }
 
 let state = { ...initialState }
@@ -165,6 +166,34 @@ function playerStrip() {
   </div>`
 }
 
+function roundRecord(hostWord, guestWord) {
+  const cleanHostWord = String(hostWord || '').trim()
+  const cleanGuestWord = String(guestWord || '').trim()
+  return {
+    round: state.round,
+    hostWord: cleanHostWord,
+    guestWord: cleanGuestWord,
+    matched: cleanHostWord.toLocaleLowerCase() === cleanGuestWord.toLocaleLowerCase()
+  }
+}
+
+function historyMarkup() {
+  const records = Array.isArray(state.records) ? state.records : []
+  return `<section class="history-panel ${records.length ? 'has-records' : 'is-empty'}">
+    <div class="history-heading">
+      <div><span class="history-title">本局记录</span><span class="history-caption">每一轮都算数</span></div>
+      <span class="history-count">${records.length ? `${records.length} 轮` : '等待第一轮'}</span>
+    </div>
+    ${records.length ? `<div class="history-list">${records.map((record) => `<div class="history-row">
+      <span class="history-round">第 ${escapeHTML(record.round)} 轮</span>
+      <span class="history-word coral-word">${escapeHTML(record.hostWord)}</span>
+      <span class="history-arrow">↔</span>
+      <span class="history-word mint-word">${escapeHTML(record.guestWord)}</span>
+      <span class="history-status ${record.matched ? 'match' : 'near'}">${record.matched ? '同频' : '靠近'}</span>
+    </div>`).join('')}</div>` : '<p class="history-empty">双方都提交后，这里会留下这一轮。</p>'}
+  </section>`
+}
+
 function inputMarkup() {
   const localSubmitted = state.role === 'host' ? state.hostSubmitted : state.guestSubmitted
   const otherSubmitted = state.role === 'host' ? state.guestSubmitted : state.hostSubmitted
@@ -187,6 +216,7 @@ function inputMarkup() {
         <div class="privacy-note">${icon('lock')} 只有双方都提交后，词语才会同时揭晓</div>
       </section>
       ${otherSubmitted && !localSubmitted ? '<p class="opponent-note">对方已经写好了，现在轮到你。</p>' : ''}
+      ${historyMarkup()}
       <button class="text-button" data-action="leave">退出房间</button>
     </main>`
 }
@@ -208,6 +238,7 @@ function revealMarkup() {
       </section>
       ${matched ? `<div class="match-stamp">MATCH <span>同频</span></div>` : '<div class="distance-note">每一轮，答案都会更近一点</div>'}
       <button class="primary-button full next-button" data-action="${matched ? 'again' : 'next'}">${matched ? `${icon('refresh')} 再玩一局` : `下一轮 ${icon('arrow')}`}</button>
+      ${historyMarkup()}
       <button class="text-button" data-action="leave">结束这局</button>
     </main>`
 }
@@ -254,7 +285,8 @@ function sharedState() {
     hostSubmitted: state.hostSubmitted,
     guestSubmitted: state.guestSubmitted,
     roomCode: state.roomCode,
-    connected: state.connected
+    connected: state.connected,
+    records: Array.isArray(state.records) ? state.records : []
   }
 }
 
@@ -331,7 +363,10 @@ function onHostData(data) {
     const guestWord = String(data.word || '').trim().slice(0, 24)
     if (!guestWord || state.phase !== 'input') return
     const next = { guestWord, guestSubmitted: true }
-    if (state.hostSubmitted) next.phase = 'reveal'
+    if (state.hostSubmitted) {
+      next.phase = 'reveal'
+      next.records = [...(Array.isArray(state.records) ? state.records : []), roundRecord(state.hostWord, guestWord)]
+    }
     updateGame(next)
     return
   }
@@ -340,7 +375,7 @@ function onHostData(data) {
     return
   }
   if (data.type === 'again' && state.phase === 'reveal') {
-    updateGame({ phase: 'input', round: 1, hostWord: '', guestWord: '', hostSubmitted: false, guestSubmitted: false })
+    updateGame({ phase: 'input', round: 1, hostWord: '', guestWord: '', hostSubmitted: false, guestSubmitted: false, records: [] })
   }
 }
 
@@ -370,7 +405,7 @@ function onGuestData(data) {
   if (!data || typeof data !== 'object') return
   if (data.type === 'hello-ack' || data.type === 'state') {
     const nextState = data.state || {}
-    setState({ ...nextState, role: 'guest', connected: true, phase: nextState.phase || 'input' })
+    setState({ ...nextState, records: Array.isArray(nextState.records) ? nextState.records : [], role: 'guest', connected: true, phase: nextState.phase || 'input' })
   }
 }
 
@@ -384,7 +419,10 @@ function submitWord() {
   }
   if (state.role === 'host') {
     const next = { hostWord: word, hostSubmitted: true }
-    if (state.guestSubmitted) next.phase = 'reveal'
+    if (state.guestSubmitted) {
+      next.phase = 'reveal'
+      next.records = [...(Array.isArray(state.records) ? state.records : []), roundRecord(word, state.guestWord)]
+    }
     updateGame(next)
   } else if (connection?.open) {
     connection.send({ type: 'submit', word })
@@ -443,7 +481,7 @@ function nextRound() {
 
 function again() {
   if (state.role === 'host') {
-    updateGame({ phase: 'input', round: 1, hostWord: '', guestWord: '', hostSubmitted: false, guestSubmitted: false })
+    updateGame({ phase: 'input', round: 1, hostWord: '', guestWord: '', hostSubmitted: false, guestSubmitted: false, records: [] })
   } else if (connection?.open) {
     connection.send({ type: 'again' })
   }

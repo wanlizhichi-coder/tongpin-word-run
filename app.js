@@ -94,12 +94,13 @@ function headerMarkup({ room = false } = {}) {
 function homeMarkup() {
   const storedName = escapeHTML(localStorage.getItem('tongpin-name') || '')
   const joinValue = escapeHTML(invitedCode || '')
+  const isInvite = Boolean(invitedCode)
   return `${headerMarkup()}
     <main class="home-main">
       <section class="hero">
-        <div class="hero-kicker"><span class="kicker-line"></span>朋友互动 · 双人版</div>
-        <h1>猜到同一个词，<br /><em>才算抵达。</em></h1>
-        <p class="hero-copy">各自写下第一直觉，等对方也提交，<br class="desktop-break" />再一起揭晓答案。</p>
+        <div class="hero-kicker"><span class="kicker-line"></span>${isInvite ? '收到朋友邀请' : '朋友互动 · 双人版'}</div>
+        <h1>${isInvite ? '先留下名字，<br /><em>就能进场。</em>' : '猜到同一个词，<br /><em>才算抵达。</em>'}</h1>
+        <p class="hero-copy">${isInvite ? '输入一个称呼，朋友会在房间里看到你。' : '各自写下第一直觉，等对方也提交，<br class="desktop-break" />再一起揭晓答案。'}</p>
         <div class="track-visual" aria-label="两条跑道在终点交汇">
           <div class="track-label left">你</div>
           <div class="track-lines">
@@ -113,18 +114,19 @@ function homeMarkup() {
 
       <section class="home-panel">
         <div class="panel-heading">
-          <span class="eyebrow">现在开始</span>
-          <h2>先告诉我，你是谁</h2>
+          <span class="eyebrow">${isInvite ? '加入这一局' : '现在开始'}</span>
+          <h2>${isInvite ? '你想用什么名字？' : '先告诉我，你是谁'}</h2>
         </div>
         <label class="field-label" for="player-name">你的称呼</label>
         <input id="player-name" class="text-input" maxlength="12" autocomplete="nickname" value="${storedName}" placeholder="比如：小周" />
-        <button class="primary-button full" data-action="create">创建一局 ${icon('arrow')}</button>
+        ${isInvite ? `<button class="primary-button full" data-action="join-invite">进入房间 ${icon('arrow')}</button>
+        <p class="connection-note">无需验证码 · 名字只在这局里使用</p>` : `<button class="primary-button full" data-action="create">创建一局 ${icon('arrow')}</button>
         <div class="or-line"><span>或者</span></div>
         <div class="join-row">
           <input id="join-code" class="text-input code-input" maxlength="10" value="${joinValue}" placeholder="输入朋友的房间码" autocapitalize="characters" />
           <button class="secondary-button join-button" data-action="join">加入</button>
         </div>
-        <p class="connection-note">无需注册 · 链接打开就能玩</p>
+        <p class="connection-note">无需注册 · 链接打开就能玩</p>`}
       </section>
     </main>
     <footer class="home-footer"><span>${icon('bolt')}</span> 这一局只属于你们两个人</footer>`
@@ -159,10 +161,17 @@ function waitingMarkup() {
 }
 
 function playerStrip() {
+  const localIsHost = state.role !== 'guest'
+  const leftName = localIsHost ? state.hostName : state.guestName
+  const rightName = localIsHost ? state.guestName : state.hostName
+  const leftTone = localIsHost ? 'coral' : 'mint'
+  const rightTone = localIsHost ? 'mint' : 'coral'
+  const leftDot = localIsHost ? 'coral-dot' : 'mint-dot'
+  const rightDot = localIsHost ? 'mint-dot' : 'coral-dot'
   return `<div class="player-strip">
-    <div class="player-chip"><span class="chip-avatar coral">${escapeHTML((state.hostName || '你').slice(0, 1).toUpperCase())}</span><span>${escapeHTML(state.hostName || '你')}</span><i class="chip-dot coral-dot"></i></div>
+    <div class="player-chip"><span class="chip-avatar ${leftTone}">${escapeHTML((leftName || '你').slice(0, 1).toUpperCase())}</span><span>${escapeHTML(leftName || '你')}</span><i class="chip-dot ${leftDot}"></i></div>
     <div class="round-badge">第 ${state.round} 轮</div>
-    <div class="player-chip guest-chip"><i class="chip-dot mint-dot"></i><span>${escapeHTML(state.guestName || '朋友')}</span><span class="chip-avatar mint">${escapeHTML((state.guestName || '朋').slice(0, 1).toUpperCase())}</span></div>
+    <div class="player-chip guest-chip"><i class="chip-dot ${rightDot}"></i><span>${escapeHTML(rightName || '朋友')}</span><span class="chip-avatar ${rightTone}">${escapeHTML((rightName || '朋').slice(0, 1).toUpperCase())}</span></div>
   </div>`
 }
 
@@ -179,18 +188,23 @@ function roundRecord(hostWord, guestWord) {
 
 function historyMarkup() {
   const records = Array.isArray(state.records) ? state.records : []
+  const localIsHost = state.role !== 'guest'
   return `<section class="history-panel ${records.length ? 'has-records' : 'is-empty'}">
     <div class="history-heading">
       <div><span class="history-title">本局记录</span><span class="history-caption">每一轮都算数</span></div>
       <span class="history-count">${records.length ? `${records.length} 轮` : '等待第一轮'}</span>
     </div>
-    ${records.length ? `<div class="history-list">${records.map((record) => `<div class="history-row">
+    ${records.length ? `<div class="history-list">${records.map((record) => {
+      const leftWord = localIsHost ? record.hostWord : record.guestWord
+      const rightWord = localIsHost ? record.guestWord : record.hostWord
+      return `<div class="history-row">
       <span class="history-round">第 ${escapeHTML(record.round)} 轮</span>
-      <span class="history-word coral-word">${escapeHTML(record.hostWord)}</span>
+      <span class="history-word ${localIsHost ? 'coral-word' : 'mint-word'}">${escapeHTML(leftWord)}</span>
       <span class="history-arrow">↔</span>
-      <span class="history-word mint-word">${escapeHTML(record.guestWord)}</span>
+      <span class="history-word ${localIsHost ? 'mint-word' : 'coral-word'}">${escapeHTML(rightWord)}</span>
       <span class="history-status ${record.matched ? 'match' : 'near'}">${record.matched ? '同频' : '靠近'}</span>
-    </div>`).join('')}</div>` : '<p class="history-empty">双方都提交后，这里会留下这一轮。</p>'}
+    </div>`
+    }).join('')}</div>` : '<p class="history-empty">双方都提交后，这里会留下这一轮。</p>'}
   </section>`
 }
 
@@ -223,6 +237,13 @@ function inputMarkup() {
 
 function revealMarkup() {
   const matched = state.hostWord.trim().toLocaleLowerCase() === state.guestWord.trim().toLocaleLowerCase()
+  const localIsHost = state.role !== 'guest'
+  const leftName = localIsHost ? state.hostName : state.guestName
+  const rightName = localIsHost ? state.guestName : state.hostName
+  const leftWord = localIsHost ? state.hostWord : state.guestWord
+  const rightWord = localIsHost ? state.guestWord : state.hostWord
+  const leftCard = localIsHost ? 'coral-card' : 'mint-card'
+  const rightCard = localIsHost ? 'mint-card' : 'coral-card'
   return `${headerMarkup({ room: true })}
     <main class="room-main game-main reveal-main">
       ${playerStrip()}
@@ -232,9 +253,9 @@ function revealMarkup() {
         <p>${matched ? '这就是传说中的同频时刻。' : '有一点距离，下一轮再靠近一点。'}</p>
       </section>
       <section class="answer-grid ${matched ? 'is-match' : ''}">
-        <div class="answer-card coral-card"><span class="answer-name">${escapeHTML(state.hostName || '你')}</span><strong>${escapeHTML(state.hostWord)}</strong></div>
+        <div class="answer-card ${leftCard}"><span class="answer-name">${escapeHTML(leftName || '你')} · 你的词</span><strong>${escapeHTML(leftWord)}</strong></div>
         <div class="answer-connector">${matched ? '✦' : '≠'}</div>
-        <div class="answer-card mint-card"><span class="answer-name">${escapeHTML(state.guestName || '朋友')}</span><strong>${escapeHTML(state.guestWord)}</strong></div>
+        <div class="answer-card ${rightCard}"><span class="answer-name">${escapeHTML(rightName || '朋友')} · 对方的词</span><strong>${escapeHTML(rightWord)}</strong></div>
       </section>
       ${matched ? `<div class="match-stamp">MATCH <span>同频</span></div>` : '<div class="distance-note">每一轮，答案都会更近一点</div>'}
       <button class="primary-button full next-button" data-action="${matched ? 'again' : 'next'}">${matched ? `${icon('refresh')} 再玩一局` : `下一轮 ${icon('arrow')}`}</button>
@@ -522,12 +543,3 @@ function bindEvents() {
 
 render()
 
-// An invitation link already contains the room identity. Join immediately so
-// the friend only needs to open the link; a nickname is optional and defaults
-// to a friendly fallback.
-if (invitedCode) {
-  const inviteName = (localStorage.getItem('tongpin-name') || '朋友').trim() || '朋友'
-  window.setTimeout(() => {
-    if (state.phase === 'home') setupGuest(inviteName, invitedCode)
-  }, 0)
-}

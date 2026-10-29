@@ -521,3 +521,13 @@ function bindEvents() {
 }
 
 render()
+
+// An invitation link already contains the room identity. Join immediately so
+// the friend only needs to open the link; a nickname is optional and defaults
+// to a friendly fallback.
+if (invitedCode) {
+  const inviteName = (localStorage.getItem('tongpin-name') || '朋友').trim() || '朋友'
+  window.setTimeout(() => {
+    if (state.phase === 'home') setupGuest(inviteName, invitedCode)
+  }, 0)
+}
